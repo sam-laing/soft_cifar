@@ -45,7 +45,7 @@ def make_reader(path=None):
     return reader
 
 
-def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, entropy_threshold:float = None):
+def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None):
     if entropy_threshold is not None:
         """   
         if the entropy of a sample is sufficiently low (below threshold),
@@ -80,15 +80,21 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
     train_mean = reader.data[train_indices].mean(axis=(0,1,2))/255
     train_std = reader.data[train_indices].std(axis=(0,1,2))/255
 
-    transform = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.2, hue=0.15),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
-        transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.8, 1.2)),
-        transforms.ToTensor(),
-        transforms.Normalize(train_mean, train_std)
-    ])
+    if do_augmentation:
+        transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.2, hue=0.15),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(10),
+            transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.8, 1.2)),
+            transforms.ToTensor(),
+            transforms.Normalize(train_mean, train_std)
+        ])
+    else:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(train_mean, train_std)
+        ])
 
     non_train_transform = transforms.Compose([
         transforms.ToTensor(), 
@@ -112,11 +118,11 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
 
     return train_dataset, val_dataset, test_dataset
 
-def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.7, 0.15, 0.15], use_hard_labels:bool = False):
+def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False):
     train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
-    
+

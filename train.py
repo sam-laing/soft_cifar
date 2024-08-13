@@ -84,7 +84,10 @@ def main():
     reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
     try:
         train_loader, val_loader, test_loader = make_loaders(
-            reader, batch_size = 128, split_ratio=[0.8, 0.05, 0.15], use_hard_labels=str2bool(args.hard))
+                                                            reader, batch_size = 128, 
+                                                            split_ratio=[0.8, 0.05, 0.15], 
+                                                            use_hard_labels=str2bool(args.hard)
+                                                        )
     except Exception as e:
         print(f"Error: {e}")
 
