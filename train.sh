@@ -1,0 +1,1 @@
+python train.py --unc_method sngp
