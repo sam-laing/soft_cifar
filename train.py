@@ -130,7 +130,7 @@ def main():
 
 
 def train_single_epoch(model, train_loader, val_loader, test_loader, 
-                       optimizer, criterion, epoch, device = device):
+                       optimizer, criterion, epoch, device = device, use_mixup=False):
     """   
     Actions: 
         train a single epoch of the model 
@@ -142,6 +142,7 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
 
     if isinstance(model, SNGPWrapper) and args.gp_cov_momentum < 0:
         model.classifier[-1].reset_covariance_matrix()
+    
 
     epoch_loss = 0
     for idx, (x,y) in enumerate(train_loader):
