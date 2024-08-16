@@ -7,9 +7,7 @@ import numpy as np
 from torchvision import transforms
 from PIL import Image
 import os
-import sys
 import torch
-
 
 
 class CIFAR10Soft(Dataset):
@@ -45,7 +43,8 @@ def make_reader(path=None):
 
     return reader
 
-def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, entropy_threshold:float = None):
+
+def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None):
     if entropy_threshold is not None:
         """   
         if the entropy of a sample is sufficiently low (below threshold),
@@ -60,7 +59,7 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
         # get the entropy of the soft labels
         entropies = entropy(reader.soft_labels)
 
-        # get the indices of the images with lower than threshold entropy
+        # indices of the images with lower than threshold entropy
         lower_entropy_indices = torch.where(entropies < entropy_threshold)[0]
 
 
@@ -80,15 +79,21 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
     train_mean = reader.data[train_indices].mean(axis=(0,1,2))/255
     train_std = reader.data[train_indices].std(axis=(0,1,2))/255
 
-    transform = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.2, hue=0.15),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
-        transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.8, 1.2)),
-        transforms.ToTensor(),
-        transforms.Normalize(train_mean, train_std)
-    ])
+    if do_augmentation:
+        transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.2, hue=0.15),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(10),
+            transforms.RandomResizedCrop(32, scale=(0.8, 1.0), ratio=(0.8, 1.2)),
+            transforms.ToTensor(),
+            transforms.Normalize(train_mean, train_std)
+        ])
+    else:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(train_mean, train_std)
+        ])
 
     non_train_transform = transforms.Compose([
         transforms.ToTensor(), 
@@ -112,51 +117,52 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
 
     return train_dataset, val_dataset, test_dataset
 
-
-
-def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.7, 0.15, 0.15], use_hard_labels:bool = False):
+def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False):
     train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
-    
 
-def _mixup_datapoints(x1,x2, y1,y2, p=0.5):
+
+
+
+
+
+def mixup_datapoints(x, y, device, alpha=0.2):
     '''
-    given two datapoints x1, x2 and their corresponding labels y1, y2
-    return a convex combination of the two datapoints and their labels
+    given a minibatch of data x and labels y, 
+    generate an idx of samples to mixup with
 
     p is the amount of weight to put on the first sample
+    it will be generated from a beta distribution with parameter alpha
 
     '''
-
-    assert x1.shape == x2.shape
-    assert y1.shape == y2.shape
-    assert p<=1 and p>=0
-
-    x = p*x1 + (1-p)*x2
-    y = p*y1 + (1-p)*y2
-
+    idx = torch.randperm(x.shape[0]).to(device)
+    print("idx: ", idx.shape)
+    lam = np.random.beta(alpha, alpha, size= x.shape[0])
+    lam = torch.tensor(lam).to(device)
+    print("lam: ", lam.shape)
+    x = lam[:, None, None, None] * x + (1 - lam[:, None, None, None]) * x[idx]
+    y = lam[:, None] * y + (1 - lam[:, None]) * y[idx]
     return x, y
 
 
-def mixup_loader(loader:DataLoader, device, alpha=50):
-    '''
-    given a dataloader, return a new dataloader with mixup applied
-    '''
-    for x1, y1 in loader:
-        try:
-            x2, y2 = next(loader)
-        except StopIteration:
-            break
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
+    train_loader, val_loader, test_loader = make_loaders(
+        reader, batch_size=128, split_ratio=[0.8, 0.05, 0.15], use_hard_labels=False
+    )
 
-        x1, y1 = x1.to(device), y1.to(device)
-        x2, y2 = x2.to(device), y2.to(device)
+    for x, y in train_loader:
+        print("x: ", x)
+        print("y: ", y)
+        x, y = mixup_datapoints(x, y, device)
+        print("shuffled x: ", x)
+        print("shuffled y:", y)
+        break
 
-        p = np.random.beta(alpha, alpha)
 
-        x, y = _mixup_datapoints(x1, x2, y1, y2, p)
 
-        yield x, y

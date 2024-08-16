@@ -1,2 +1,7 @@
 *.cpython
 *.pyc
+*.log
+*.yaml
+*.yml
+*.wandb
+wandb
