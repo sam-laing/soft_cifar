@@ -70,7 +70,7 @@ def get_model_outputs_and_labels(test_loader: DataLoader, model:nn.Module, devic
   with torch.no_grad():
     for i, (images, labels) in enumerate(test_loader):
       images, labels = images.to(device), labels.to(device)
-      outputs = model(images)
+      outputs = model(images)["logit"].squeeze(1).to(device)
       outputs_list.append(outputs.cpu())
       labels_list.append(labels.cpu())
 
