@@ -6,6 +6,8 @@ from wrappers.duq_wrapper import DUQWrapper, DUQHead
 from wrappers.mahalanobis_wrapper import MahalanobisWrapper
 from wrappers.sngp_wrapper import SNGPWrapper, LaplaceRandomFeatureCovariance, LinearSpectralNormalizer, Conv2dSpectralNormalizer, SpectralNormalizedBatchNorm2d
 
+
+from lr_warmup import WarmupMultiStepLR
 from evaluate_metrics import EpochLossCounter
 
 from losses.duq_loss import DUQLoss
@@ -21,6 +23,8 @@ import logging
 
 import wandb
 from wandbkey import KEY
+
+
 
 
 
@@ -84,7 +88,7 @@ def main():
     reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
     try:
         train_loader, val_loader, test_loader = make_loaders(
-                                                            reader, batch_size = 128, 
+                                                            reader, batch_size = 64, 
                                                             split_ratio=[0.8, 0.05, 0.15], 
                                                             use_hard_labels=str2bool(args.hard)
                                                         )
@@ -95,15 +99,14 @@ def main():
 
     wandb.login(key=KEY)
 
-
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.2)
-
+    #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
+    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[10, 20, 30], gamma=0.5)
+    
     if args.unc_method == "duq":
         criterion = DUQLoss()
     
-
     with wandb.init(project=f"CIFAR 10 {args.unc_method}", 
                     name=f"{args.unc_method}, lr={args.lr}, BS={args.batch_size}, epochs={args.epochs}, depth={args.depth}, dropout={args.dropout}, hard={args.hard}.pth",
                     config=args) as run:
@@ -179,18 +182,19 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
         backward(loss)
 
 
-    #val_loss, val_accuracy = validate(model, val_loader, criterion)
+    val_loss, val_accuracy = validate(model, val_loader, criterion)
     avg_epoch_loss = epoch_loss / len(train_loader)
     print(
         f"Epoch {epoch}, Loss: {avg_epoch_loss},"
+        f"Val Loss: {val_loss}, Val Accuracy: {val_accuracy},"
         f"LR: {optimizer.param_groups[0]['lr']}"
     )
     
     # could also do some wandb logging
     wandb.log({ 
         "train_loss": avg_epoch_loss,
-        #"val_loss": val_loss,
-        #"val_accuracy": val_accuracy
+        "val_loss": val_loss,
+        "val_accuracy": val_accuracy
     })
 
 
@@ -207,10 +211,10 @@ def validate(model, val_loader, criterion):
         for images, labels in val_loader:
             images = images.to(device)
             labels = labels.to(device)
-            print(type(labels))
-            outputs = model(images)["logit"]
-            print(outputs)
-            print(type(outputs))
+            outputs = model(images)["logit"].squeeze(1).to(device)
+            print(outputs.shape, labels.shape)
+            print(outputs.shape, labels.shape)
+
             val_loss += criterion(outputs, labels)
             total += labels.size(0)
             correct += (torch.argmax(outputs, 1) == torch.argmax(labels, 1)).sum().item()
