@@ -5,3 +5,6 @@
 *.yml
 *.wandb
 wandb
+__pycache__
+wrappers/__pycache__
+losses/__pycache__
