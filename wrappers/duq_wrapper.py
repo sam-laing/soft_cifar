@@ -92,7 +92,7 @@ class DUQHead(nn.Module):
                 .log()
                 .clamp(min=min_real)
             )
-
+            logit = torch.sigmoid(logit)
             return {
                 "logit": logit,  # [B, C]
                 "feature": features,  # [B, D]

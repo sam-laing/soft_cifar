@@ -23,6 +23,7 @@ import logging
 
 import wandb
 from wandbkey import KEY
+import warnings
 
 
 
@@ -46,7 +47,7 @@ parser.add_argument('--gamma', default=0.15, type=float, help='learning rate dec
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--batch_size', default=128, type=int, help='mini-batch size')
 parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight decay')
-parser.add_argument('--hard', type=bool, default=False)
+parser.add_argument('--hard', type=bool, default=True)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)
@@ -115,8 +116,13 @@ def main():
 
         for epoch in range(args.epochs):
             optimizer.zero_grad()
+
+            warnings.filterwarnings("ignore")
+
             train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch)
-            scheduler.step()
+            scheduler.step(epoch)
+
+            warnings.simplefilter("default")  # Change the filter in this process
 
     
         
@@ -200,8 +206,6 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
 
 
 
-
-
 def validate(model, val_loader, criterion):
     model.eval()
     with torch.no_grad():
@@ -211,9 +215,13 @@ def validate(model, val_loader, criterion):
         for images, labels in val_loader:
             images = images.to(device)
             labels = labels.to(device)
-            outputs = model(images)["logit"].squeeze(1).to(device)
-            print(outputs.shape, labels.shape)
-            print(outputs.shape, labels.shape)
+
+            if args.unc_method == "sngp":
+                # take mean along 1 dim
+                outputs = model(images)["logit"].mean(1).to(device)
+            else: 
+                outputs = model(images)["logit"].squeeze(1).to(device)
+
 
             val_loss += criterion(outputs, labels)
             total += labels.size(0)
@@ -263,4 +271,25 @@ def str2bool(v):
 
 if __name__ == "__main__":
     main()
+
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = make_resnet_cifar(depth=args.depth).to(device)
+    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
+    try:
+        train_loader, val_loader, test_loader = make_loaders(
+                                                            reader, batch_size = 64, 
+                                                            split_ratio=[0.8, 0.05, 0.15], 
+                                                            use_hard_labels=str2bool(args.hard)
+                                                        )
+    except Exception as e:
+        print(f"Error: {e}")
+    
+    wrapped_model = create_wrapped_model(model, args).to(device)
+
+    loss, acc = validate(wrapped_model, test_loader, nn.CrossEntropyLoss())
+    print(loss, acc)
+    """
+
 

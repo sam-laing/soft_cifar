@@ -22,6 +22,7 @@ from wrappers.sngp_wrapper import SNGPWrapper
 from wrappers.mahalanobis_wrapper import MahalanobisWrapper
 from wrappers.duq_wrapper import DUQWrapper
 from wrappers.dropout_wrapper import DropoutWrapper
+from wrappers.model_wrapper import ModelWrapper
 
 import logging  
 import sys
@@ -67,10 +68,10 @@ def create_wrapped_model(model, args):
             rbf_length_scale=args.rbf_length_scale,
             ema_momentum=args.ema_momentum
         )
-    else:
-        wrapped_model = model
+    elif (wrapper=="basic") and (args.dropout==0):
+        wrapped_model = ModelWrapper(model)
     
-    if args.dropout > 0:
+    elif (wrapper=="basic") and (args.dropout > 0):
         wrapped_model = DropoutWrapper(
             model=wrapped_model,
             dropout_probability=args.dropout,
