@@ -1,5 +1,6 @@
 from resnet import make_resnet_cifar
-from read_loader import make_reader, make_loaders  
+from read_loader import make_reader, make_loaders 
+from mixup import mixup_datapoints 
 from evaluate_metrics import evaluate_model
 
 from wrappers.duq_wrapper import DUQWrapper, DUQHead
@@ -48,6 +49,10 @@ parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--batch_size', default=128, type=int, help='mini-batch size')
 parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight decay')
 parser.add_argument('--hard', type=bool, default=True)
+parser.add_argument('--mixup', type=float, default=0.0)
+parser.add_argument('--mixup_prob', type=float, default=0.0)
+parser.add_argument('--cutmix', type=float, default=0.0)
+parser.add_argument('--cutmix_prob', type=float, default=0.0)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)
@@ -97,7 +102,7 @@ def main():
         print(f"Error: {e}")
 
     wrapped_model = create_wrapped_model(model, args).to(device)
-
+    assert not (args.mixup > 0 and args.cutmix > 0), "Cannot use both mixup and cutmix at the same time"
     wandb.login(key=KEY)
 
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
@@ -156,6 +161,11 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
     epoch_loss = 0
     for idx, (x,y) in enumerate(train_loader):
         x,y = x.to(device), y.to(device)
+        if args.mixup > 0:
+            r = torch.rand(1).item()
+            if r < args.mixup_prob:
+                x, y = mixup_datapoints(x, y, device, alpha=args.mixup)
+
 
         if isinstance(model, DUQWrapper):
             x.requires_grad_(True)

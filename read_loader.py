@@ -118,8 +118,8 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
 
     return train_dataset, val_dataset, test_dataset
 
-def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False):
-    train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels)
+def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None):
+    train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels, do_augmentation)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
