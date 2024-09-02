@@ -219,15 +219,21 @@ class EpochLossCounter:
 
 
 if __name__ == "__main__":
- 
-    #reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
+    from read_loader import make_reader, make_loaders
+
+    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
+    train_loader, val_loader, test_loader = make_loaders(reader, use_hard_labels=True, batch_size=128, split_ratio=[0.8, 0.05, 0.15], do_augmentation=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = make_resnet_cifar(depth=20).to(device)
-    model.load_state_dict(torch.load("/home/slaing/ML/2nd_year/sem2/research/models/new_net/536411_hard_False_BS_64_LR_0.04_epochs_100_depth_20_gamma_0.1_mom_0.9.pth", map_location=device))
 
-    out, lab = ood_uncertainty(model, device)
-    print(out.shape, lab.shape)
+    from wrappers.dropout_wrapper import DropoutWrapper
+    model = DropoutWrapper(model, dropout_probability=0.07, is_filterwise_dropout=False, num_mc_samples=10)
+
+    #model.load_state_dict(torch.load("/home/slaing/ML/2nd_year/sem2/research/models/new_net/536411_hard_False_BS_64_LR_0.04_epochs_100_depth_20_gamma_0.1_mom_0.9.pth", map_location=device))
+
+    metrics = evaluate_model(model, test_loader, device)
+    print(metrics)
 
     '''
     train_loader, val_loader, test_loader = make_loaders(reader, use_hard_labels=True, batch_size=128, split_ratio=[0.8, 0.05, 0.15])

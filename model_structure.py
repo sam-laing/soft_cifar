@@ -73,11 +73,14 @@ def create_wrapped_model(model, args):
     
     elif (wrapper=="basic") and (args.dropout > 0):
         wrapped_model = DropoutWrapper(
-            model=wrapped_model,
+            model=model,
             dropout_probability=args.dropout,
             is_filterwise_dropout=False,
-            num_mc_samples=1
+            num_mc_samples=5
         )
+    else:
+        raise ValueError(f"method {wrapper} not found")
+
     return wrapped_model
 
 

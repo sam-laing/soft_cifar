@@ -1,6 +1,6 @@
 from resnet import make_resnet_cifar
 from read_loader import make_reader, make_loaders 
-from mixup import mixup_datapoints 
+from mixup import mixup_datapoints, cutmix_datapoints 
 from evaluate_metrics import evaluate_model
 
 from wrappers.duq_wrapper import DUQWrapper, DUQHead
@@ -19,17 +19,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import numpy as np
 
 import logging
 
 import wandb
 from wandbkey import KEY
 import warnings
-
-
-
-
-
 
 
 set_seed(99)
@@ -48,6 +44,7 @@ parser.add_argument('--gamma', default=0.15, type=float, help='learning rate dec
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--batch_size', default=128, type=int, help='mini-batch size')
 parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight decay')
+parser.add_argument('--do_augmentation', default=True, type=bool, help='whether to do data augmentation')
 parser.add_argument('--hard', type=bool, default=True)
 parser.add_argument('--mixup', type=float, default=0.0)
 parser.add_argument('--mixup_prob', type=float, default=0.0)
@@ -96,7 +93,8 @@ def main():
         train_loader, val_loader, test_loader = make_loaders(
                                                             reader, batch_size = 64, 
                                                             split_ratio=[0.8, 0.05, 0.15], 
-                                                            use_hard_labels=str2bool(args.hard)
+                                                            use_hard_labels=str2bool(args.hard), 
+                                                            do_augmentation=str2bool(args.do_augmentation)
                                                         )
     except Exception as e:
         print(f"Error: {e}")
@@ -161,10 +159,11 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
     epoch_loss = 0
     for idx, (x,y) in enumerate(train_loader):
         x,y = x.to(device), y.to(device)
-        if args.mixup > 0:
-            r = torch.rand(1).item()
-            if r < args.mixup_prob:
-                x, y = mixup_datapoints(x, y, device, alpha=args.mixup)
+        r = torch.rand(1).item()
+        if args.mixup > 0 and r < args.mixup_prob:
+            x, y = mixup_datapoints(x, y, device, alpha=args.mixup)
+        elif args.cutmix > 0 and r < args.cutmix_prob:
+            x, y = cutmix_datapoints(x, y, device, alpha=args.cutmix)
 
 
         if isinstance(model, DUQWrapper):
@@ -217,6 +216,9 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
 
 
 def validate(model, val_loader, criterion):
+    if len(val_loader) == 0:
+        return 0, 0
+
     model.eval()
     with torch.no_grad():
         val_loss = 0
@@ -226,9 +228,10 @@ def validate(model, val_loader, criterion):
             images = images.to(device)
             labels = labels.to(device)
 
-            if args.unc_method == "sngp":
+            if (args.unc_method=="sngp") or (args.dropout>0):
                 # take mean along 1 dim
                 outputs = model(images)["logit"].mean(1).to(device)
+
             else: 
                 outputs = model(images)["logit"].squeeze(1).to(device)
 
