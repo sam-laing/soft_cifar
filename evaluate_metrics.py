@@ -12,6 +12,9 @@ import time
 import random
 from torch import Tensor
 
+from wrappers.sngp_wrapper import SNGPWrapper
+from wrappers.dropout_wrapper import DropoutWrapper
+
 import os
 import random
 
@@ -26,12 +29,43 @@ from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_sco
 
 from collections import OrderedDict
 
+def validate(model, val_loader, criterion):
+    if len(val_loader) == 0:
+        return 0, 0
+
+    model.eval()
+    with torch.no_grad():
+        val_loss = 0
+        correct = 0
+        total = 0
+        for images, labels in val_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            if (args.unc_method=="sngp") or (args.dropout>0):
+                # take mean along 1 dim
+                outputs = model(images)["logit"].mean(1).to(device)
+
+            else: 
+                outputs = model(images)["logit"].squeeze(1).to(device)
+
+
+            val_loss += criterion(outputs, labels)
+            total += labels.size(0)
+            correct += (torch.argmax(outputs, 1) == torch.argmax(labels, 1)).sum().item()
+        
+        val_loss /= len(val_loader)
+        val_accuracy = correct / total
+        return val_loss, val_accuracy 
+
 def evaluate_model(model, test_loader, device):
     """    
     given the model and test loader, return a dict of important metrics for the model 
     """
+    do_avg = (isinstance(model, DropoutWrapper) or isinstance(model, SNGPWrapper))
+ 
 
-    outputs, labels = get_model_outputs_and_labels(test_loader, model, device)
+    outputs, labels = get_model_outputs_and_labels(test_loader, model, device, do_avg)
     ece, oe = get_ece_and_overconf_err(outputs, labels, num_bins=10)
 
     acc = _get_accuracy(outputs, labels)
@@ -47,7 +81,7 @@ def evaluate_model(model, test_loader, device):
     labels_one_hot = labels.cpu().numpy()
 
     # Calculate the AUROC for each class and then average
-    auroc = roc_auc_score(labels_one_hot, outputs_prob, average='macro', multi_class='ovr')
+    auroc = roc_auc_score(labels_one_hot, outputs_prob)
 
     brier_score = np.mean(np.sum((outputs_prob - labels_one_hot) ** 2, axis=1))
 
@@ -60,7 +94,7 @@ def evaluate_model(model, test_loader, device):
     }
 
 
-def get_model_outputs_and_labels(test_loader: DataLoader, model:nn.Module, device):
+def get_model_outputs_and_labels(test_loader: DataLoader, model:nn.Module, device, do_avg=False):
   """
   iterate through test loader and return single numpy array of all outputs and labels
   """
@@ -69,8 +103,14 @@ def get_model_outputs_and_labels(test_loader: DataLoader, model:nn.Module, devic
   labels_list = []
   with torch.no_grad():
     for i, (images, labels) in enumerate(test_loader):
+          
       images, labels = images.to(device), labels.to(device)
+
       outputs = model(images)["logit"].squeeze(1).to(device)
+
+      if do_avg:
+        outputs = outputs.mean(1)
+    
       outputs_list.append(outputs.cpu())
       labels_list.append(labels.cpu())
 
@@ -189,10 +229,7 @@ def ood_uncertainty(model, device):
     return outputs, labels
     
 
-def monte_carlo_dropout_unc(model, device, n_samples=100):
-    # TODO: implement this
 
-    pass
 
 
 

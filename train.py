@@ -56,7 +56,7 @@ parser.add_argument('--is_spectral_normalized', type=bool, default=True)
 parser.add_argument('--use_tight_norm_for_pointwise_convs', type=bool, default=True)
 parser.add_argument('--spectral_normalization_iteration', type=int, default=1)
 parser.add_argument('--spectral_normalization_bound', type=float, default=3)
-parser.add_argument('--is_batch_norm_spectral_normalized', type=bool, default=True)
+parser.add_argument('--is_batch_norm_spectral_normalized', type=bool, default=False)
 parser.add_argument('--num_mc_samples', type=int, default=1000)
 parser.add_argument('--num_random_features', type=int, default=1024)
 parser.add_argument('--gp_kernel_scale', type=float, default=1.0)
@@ -106,10 +106,20 @@ def main():
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     criterion = nn.CrossEntropyLoss()
     #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
-    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[10, 20, 30], gamma=0.5)
+    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[10, 25, 35], gamma=0.5)
     
     if args.unc_method == "duq":
         criterion = DUQLoss()
+
+    ### TODO 
+    # make better model names 
+    # make save directory
+    # run models
+    # put on cluster
+    ###
+    f"{args.unc_method}, lr={args.lr}, BS={args.batch_size}," 
+    f"epochs={args.epochs}, depth={args.depth}, dropout={args.dropout},"
+    f"hard={args.hard}.pth",
     
     with wandb.init(project=f"CIFAR 10 {args.unc_method}", 
                     name=f"{args.unc_method}, lr={args.lr}, BS={args.batch_size}, epochs={args.epochs}, depth={args.depth}, dropout={args.dropout}, hard={args.hard}.pth",
@@ -127,17 +137,16 @@ def main():
 
             warnings.simplefilter("default")  # Change the filter in this process
 
-    
+        model_metrics = evaluate_model(wrapped_model, test_loader, device)
+        print(model_metrics)
+
+        # save the model 
+        path = "/home/slaing/ML/2nd_year/sem2/research/models/"
+        torch.save(wrapped_model.state_dict(), path + f"{run.name}.pth")
+
+        #save the json
+
         
-
-
-
-
-    model_metrics = evaluate_model(wrapped_model, test_loader, device)
-
-    # here one should log the metrics to directory
-    # better for main not to return anything
-    optimizer.zero_grad()
 
 
 
@@ -145,7 +154,7 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
                        optimizer, criterion, epoch, device = device, use_mixup=False):
     """   
     Actions: 
-        train a single epoch of the model 
+        train a single epoch of the model        do_avg = True
     """
 
     wandb.watch(model, criterion, log="all", log_freq=10)

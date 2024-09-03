@@ -36,6 +36,8 @@ def create_wrapped_model(model, args):
         wrapped_model: nn.Module - the wrapped model
     """
     wrapper = args.unc_method
+    if wrapper != "basic":
+        assert args.dropout == 0, "Cannot have dropout with other wrappers"
 
     if wrapper == "sngp":
         wrapped_model = SNGPWrapper(
