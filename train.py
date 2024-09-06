@@ -22,6 +22,8 @@ import torch.nn.functional as F
 import numpy as np
 
 import logging
+import os
+import json
 
 import wandb
 from wandbkey import KEY
@@ -34,11 +36,11 @@ set_seed(99)
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 parser.add_argument('--unc_method', default = "sngp", type=str, required=True)
-parser.add_argument('--seed', default=99, type=int, help='seed for randomness')
+parser.add_argument('--seed', default=42, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
+parser.add_argument('--epochs', default=250, type=int, help='number of total epochs to run')
 parser.add_argument('--depth', default=20, type=int, help='depth of the model')
 parser.add_argument('--gamma', default=0.15, type=float, help='learning rate decay')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -81,14 +83,11 @@ parser.add_argument('--gradient_penalty_weight', type=float, default=0.1)
 
 args = parser.parse_args()
 
+reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-logging.getLogger("train")
-
-def main():
-
+def main(args=args, reader=reader, device=device):
     model = make_resnet_cifar(depth=args.depth).to(device)
-    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
     try:
         train_loader, val_loader, test_loader = make_loaders(
                                                             reader, batch_size = 64, 
@@ -106,7 +105,7 @@ def main():
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     criterion = nn.CrossEntropyLoss()
     #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
-    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[10, 25, 35], gamma=0.5)
+    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=0.5)
     
     if args.unc_method == "duq":
         criterion = DUQLoss()
@@ -117,16 +116,26 @@ def main():
     # run models
     # put on cluster
     ###
-    f"{args.unc_method}, lr={args.lr}, BS={args.batch_size}," 
-    f"epochs={args.epochs}, depth={args.depth}, dropout={args.dropout},"
-    f"hard={args.hard}.pth",
-    
-    with wandb.init(project=f"CIFAR 10 {args.unc_method}", 
-                    name=f"{args.unc_method}, lr={args.lr}, BS={args.batch_size}, epochs={args.epochs}, depth={args.depth}, dropout={args.dropout}, hard={args.hard}.pth",
+    job_id = os.environ.get("SLURM_JOB_ID")
+
+    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}:{args.mixup_prob}, cutmix={args.cutmix}:{args.cutmix_prob}"
+    if args.unc_method == "basic":
+        name = "basic, " + common_hp_str + ".pth"
+    elif args.unc_method == "sngp":
+        name = "sngp, " + common_hp_str + ".pth"
+    elif args.unc_method == "mahalanobis":
+        name = "mahalanobis, " + f"magnitude={args.magnitude}, weight_path={args.weight_path}" + common_hp_str + ".pth"
+    elif args.unc_method == "duq":
+        name = "duq, " + common_hp_str + ".pth"
+    else:
+        raise ValueError(f"Unknown uncertainty method: {args.unc_method}")
+ 
+    with wandb.init(project=f"CIFAR soft 10 {args.unc_method}", 
+                    name=name,
                     config=args) as run:
 
 
-
+        wandb.watch(model, criterion, log="all", log_freq=10)
         for epoch in range(args.epochs):
             optimizer.zero_grad()
 
@@ -138,13 +147,15 @@ def main():
             warnings.simplefilter("default")  # Change the filter in this process
 
         model_metrics = evaluate_model(wrapped_model, test_loader, device)
-        print(model_metrics)
-
+        model_metrics = {k: float(v) for k,v in model_metrics.items()}
         # save the model 
-        path = "/home/slaing/ML/2nd_year/sem2/research/models/"
+        path = "/mnt/qb/work/oh/owl886/soft_cifar/models/"
         torch.save(wrapped_model.state_dict(), path + f"{run.name}.pth")
 
         #save the json
+        with open(path + f"{run.name}.json", "w") as f:
+            json.dump(model_metrics, f)
+
 
         
 
@@ -157,7 +168,6 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
         train a single epoch of the model        do_avg = True
     """
 
-    wandb.watch(model, criterion, log="all", log_freq=10)
     model.train()
     optimizer.zero_grad()
 
@@ -213,13 +223,14 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
         f"Val Loss: {val_loss}, Val Accuracy: {val_accuracy},"
         f"LR: {optimizer.param_groups[0]['lr']}"
     )
-    
+    lr = optimizer.param_groups[0]["lr"]
     # could also do some wandb logging
     wandb.log({ 
         "train_loss": avg_epoch_loss,
         "val_loss": val_loss,
-        "val_accuracy": val_accuracy
-    })
+        "val_accuracy": val_accuracy, 
+        "lr": lr
+    })  
 
 
 
