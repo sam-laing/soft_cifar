@@ -35,14 +35,14 @@ set_seed(99)
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
-parser.add_argument('--unc_method', default = "sngp", type=str, required=True)
+parser.add_argument('--unc_method', default = "basic", type=str)
 parser.add_argument('--seed', default=42, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
 parser.add_argument('--epochs', default=250, type=int, help='number of total epochs to run')
 parser.add_argument('--depth', default=20, type=int, help='depth of the model')
-parser.add_argument('--gamma', default=0.15, type=float, help='learning rate decay')
+parser.add_argument('--gamma', default=0.5, type=float, help='learning rate decay')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--batch_size', default=128, type=int, help='mini-batch size')
 parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight decay')
@@ -83,10 +83,8 @@ parser.add_argument('--gradient_penalty_weight', type=float, default=0.1)
 
 args = parser.parse_args()
 
-reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def main(args=args, reader=reader, device=device):
+def main(device, reader, args=args):
     model = make_resnet_cifar(depth=args.depth).to(device)
     try:
         train_loader, val_loader, test_loader = make_loaders(
@@ -105,7 +103,7 @@ def main(args=args, reader=reader, device=device):
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     criterion = nn.CrossEntropyLoss()
     #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
-    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=0.5)
+    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=args.gamma)
     
     if args.unc_method == "duq":
         criterion = DUQLoss()
@@ -141,7 +139,7 @@ def main(args=args, reader=reader, device=device):
 
             warnings.filterwarnings("ignore")
 
-            train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch)
+            train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch, device)
             scheduler.step(epoch)
 
             warnings.simplefilter("default")  # Change the filter in this process
@@ -162,7 +160,7 @@ def main(args=args, reader=reader, device=device):
 
 
 def train_single_epoch(model, train_loader, val_loader, test_loader, 
-                       optimizer, criterion, epoch, device = device, use_mixup=False):
+                       optimizer, criterion, epoch, device, use_mixup=False):
     """   
     Actions: 
         train a single epoch of the model        do_avg = True
@@ -303,7 +301,9 @@ def str2bool(v):
 
 
 if __name__ == "__main__":
-    main()
+    reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    main(device=device, reader=reader)
 
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
