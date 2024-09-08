@@ -214,7 +214,7 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
         backward(loss)
 
 
-    val_loss, val_accuracy = validate(model, val_loader, criterion)
+    val_loss, val_accuracy = validate(model, val_loader, criterion, device)
     avg_epoch_loss = epoch_loss / len(train_loader)
     print(
         f"Epoch {epoch}, Loss: {avg_epoch_loss},"
@@ -233,7 +233,7 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
 
 
 
-def validate(model, val_loader, criterion):
+def validate(model, val_loader, criterion, device):
     if len(val_loader) == 0:
         return 0, 0
 
@@ -305,24 +305,5 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     main(device=device, reader=reader)
 
-    """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = make_resnet_cifar(depth=args.depth).to(device)
-    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
-    try:
-        train_loader, val_loader, test_loader = make_loaders(
-                                                            reader, batch_size = 64, 
-                                                            split_ratio=[0.8, 0.05, 0.15], 
-                                                            use_hard_labels=str2bool(args.hard)
-                                                        )
-    except Exception as e:
-        print(f"Error: {e}")
-    
-    wrapped_model = create_wrapped_model(model, args).to(device)
-
-    loss, acc = validate(wrapped_model, test_loader, nn.CrossEntropyLoss())
-    print(loss, acc)
-    """
 
 
