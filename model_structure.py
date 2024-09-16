@@ -78,7 +78,7 @@ def create_wrapped_model(model, args):
             model=model,
             dropout_probability=args.dropout,
             is_filterwise_dropout=False,
-            num_mc_samples=5
+            num_mc_samples=10
         )
     else:
         raise ValueError(f"method {wrapper} not found")

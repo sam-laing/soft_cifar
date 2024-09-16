@@ -28,19 +28,16 @@ import json
 import wandb
 from wandbkey import KEY
 import warnings
-
-
-set_seed(99)
-
+import itertools
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
-parser.add_argument('--unc_method', default = "basic", type=str)
+parser.add_argument('--unc_method', default = "duq", type=str)
 parser.add_argument('--seed', default=43, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--epochs', default=1, type=int, help='number of total epochs to run')
+parser.add_argument('--epochs', default=250, type=int, help='number of total epochs to run')
 parser.add_argument('--depth', default=20, type=int, help='depth of the model')
 parser.add_argument('--gamma', default=0.5, type=float, help='learning rate decay')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -49,9 +46,9 @@ parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight dec
 parser.add_argument('--do_augmentation', default=True, type=bool, help='whether to do data augmentation')
 parser.add_argument('--hard', type=bool, default=True)
 parser.add_argument('--mixup', type=float, default=0.0)
-parser.add_argument('--mixup_prob', type=float, default=0.0)
+parser.add_argument('--mixup_prob', type=float, default=0.5)
 parser.add_argument('--cutmix', type=float, default=0.0)
-parser.add_argument('--cutmix_prob', type=float, default=0.0)
+parser.add_argument('--cutmix_prob', type=float, default=0.15)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)
@@ -84,7 +81,7 @@ parser.add_argument('--gradient_penalty_weight', type=float, default=0.1)
 args = parser.parse_args()
 
 
-def main(device, reader, args=args):
+def main(args, device, reader):
     set_seed(args.seed)
     model = make_resnet_cifar(depth=args.depth).to(device)
     try:
@@ -111,7 +108,7 @@ def main(device, reader, args=args):
 
     job_id = os.environ.get("SLURM_JOB_ID")
 
-    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}:{args.mixup_prob}, cutmix={args.cutmix}:{args.cutmix_prob}"
+    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}"
     if args.unc_method == "basic":
         name = "basic, " + common_hp_str + ".pth"
     elif args.unc_method == "sngp":
@@ -123,7 +120,7 @@ def main(device, reader, args=args):
     else:
         raise ValueError(f"Unknown uncertainty method: {args.unc_method}")
  
-    with wandb.init(project=f"CIFAR10 soft 10 {args.unc_method}, seed {args.seed}", 
+    with wandb.init(project=f"CIFAR10 soft {args.unc_method}, seed {args.seed}", 
                     name=name,
                     config=args) as run:
 
@@ -166,14 +163,14 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
     
 
     epoch_loss = 0
+    print("mixup prob is", args.mixup, args.mixup_prob)
     for idx, (x,y) in enumerate(train_loader):
         x,y = x.to(device), y.to(device)
         r = torch.rand(1).item()
         if args.mixup > 0 and r < args.mixup_prob:
             x, y = mixup_datapoints(x, y, device, alpha=args.mixup)
-        elif args.cutmix > 0 and r < args.cutmix_prob:
+        if args.cutmix > 0 and r < args.cutmix_prob:
             x, y = cutmix_datapoints(x, y, device, alpha=args.cutmix)
-
 
         if isinstance(model, DUQWrapper):
             x.requires_grad_(True)
@@ -289,11 +286,27 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+ 
+if __name__== "__main__":
+    do_augmentation_values = ['y']
+    mixup_values = [0, 0.2]
+    cutmix_values = [0, 0.2]   
+    hard = ["n", "y"]
 
-if __name__ == "__main__":
-    reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
+    # TODO: do for augmentation "n" as well
+
+    # generate all possible combinations
+    configs = list(itertools.product(do_augmentation_values, mixup_values, cutmix_values, hard))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    main(device=device, reader=reader)
-
-
-
+    reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
+    for i, conf in enumerate(configs):
+        if conf[1] > 0 and conf[2] > 0:
+            pass
+        else:
+            args.unc_method = "duq"
+            args.do_augmentation = conf[0]
+            args.mixup = conf[1]
+            args.cutmix = conf[2]
+            args.hard = conf[3]
+            print(args)
+            main(device=device, reader=reader, args=args)

@@ -1,16 +1,39 @@
-from train import main 
-from read_loader import make_reader  
+from resnet import make_resnet_cifar
+from read_loader import make_reader, make_loaders 
+from mixup import mixup_datapoints, cutmix_datapoints 
+from evaluate_metrics import evaluate_model
+
+from wrappers.duq_wrapper import DUQWrapper, DUQHead
+from wrappers.mahalanobis_wrapper import MahalanobisWrapper
+from wrappers.sngp_wrapper import SNGPWrapper, LaplaceRandomFeatureCovariance, LinearSpectralNormalizer, Conv2dSpectralNormalizer, SpectralNormalizedBatchNorm2d
+from wrappers.dropout_wrapper import DropoutWrapper
+
+from lr_warmup import WarmupMultiStepLR
+from evaluate_metrics import EpochLossCounter
+
+from losses.duq_loss import DUQLoss
+
 import argparse  
-import itertools  
+from model_structure import create_wrapped_model, set_seed
+import torch 
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import numpy as np
 
-import torch
+import logging
+import os
+import json
 
-
+import wandb
+from wandbkey import KEY
+import warnings
+import itertools
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 parser.add_argument('--unc_method', default = "basic", type=str)
-parser.add_argument('--seed', default=99, type=int, help='seed for randomness')
+parser.add_argument('--seed', default=43, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
@@ -23,9 +46,9 @@ parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight dec
 parser.add_argument('--do_augmentation', default=True, type=bool, help='whether to do data augmentation')
 parser.add_argument('--hard', type=bool, default=True)
 parser.add_argument('--mixup', type=float, default=0.0)
-parser.add_argument('--mixup_prob', type=float, default=0.0)
+parser.add_argument('--mixup_prob', type=float, default=0.5)
 parser.add_argument('--cutmix', type=float, default=0.0)
-parser.add_argument('--cutmix_prob', type=float, default=0.0)
+parser.add_argument('--cutmix_prob', type=float, default=0.15)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)
@@ -54,26 +77,246 @@ parser.add_argument('--rbf_length_scale', type=float, default=0.1)
 parser.add_argument('--ema_momentum', type=float, default=0.999)
 parser.add_argument('--gradient_penalty_weight', type=float, default=0.1)
 
+
 args = parser.parse_args()
 
 
-dropout_values = [0, 0.05]
-do_augmentation_values = ['y', 'n']
-mixup_values = [0, 0.2]
-cutmix_values = [0, 0.2]
-hard = ["y", "n"]
-# generate all possible combinations
-configs = list(itertools.product(dropout_values, do_augmentation_values, mixup_values, cutmix_values, hard))
+def main(args, device, reader):
+    set_seed(args.seed)
+    model = make_resnet_cifar(depth=args.depth).to(device)
+    try:
+        train_loader, val_loader, test_loader = make_loaders(
+                                                            reader, batch_size = 64, 
+                                                            split_ratio=[0.8, 0.05, 0.15], 
+                                                            use_hard_labels=str2bool(args.hard), 
+                                                            do_augmentation=str2bool(args.do_augmentation)
+                                                        )
+    except Exception as e:
+        print(f"Error: {e}")
+
+    wrapped_model = create_wrapped_model(model, args).to(device)
+    assert not (args.mixup > 0 and args.cutmix > 0), "Cannot use both mixup and cutmix at the same time"
+    wandb.login(key=KEY)
+
+    optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    criterion = nn.CrossEntropyLoss()
+    #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
+    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=args.gamma)
+    
+    if args.unc_method == "duq":
+        criterion = DUQLoss()
+
+    job_id = os.environ.get("SLURM_JOB_ID")
+
+    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}"
+    if args.unc_method == "basic":
+        name = "basic, " + common_hp_str + ".pth"
+    elif args.unc_method == "sngp":
+        name = "sngp, " + common_hp_str + ".pth"
+    elif args.unc_method == "mahalanobis":
+        name = "mahalanobis, " + f"magnitude={args.magnitude}, weight_path={args.weight_path}" + common_hp_str + ".pth"
+    elif args.unc_method == "duq":
+        name = "duq, " + common_hp_str + ".pth"
+    else:
+        raise ValueError(f"Unknown uncertainty method: {args.unc_method}")
+ 
+    with wandb.init(project=f"CIFAR10 soft {args.unc_method}, seed {args.seed}", 
+                    name=name,
+                    config=args) as run:
+
+
+        wandb.watch(model, criterion, log="all", log_freq=10)
+        for epoch in range(args.epochs):
+            optimizer.zero_grad()
+
+            warnings.filterwarnings("ignore")
+
+            train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch, device)
+            scheduler.step(epoch)
+
+            warnings.simplefilter("default")  # Change the filter in this process
+
+        model_metrics = evaluate_model(wrapped_model, test_loader, device)
+        model_metrics = {k: float(v) for k,v in model_metrics.items()}
+        # save the model 
+        path = "/mnt/qb/work/oh/owl886/soft_cifar/models/"
+        torch.save(wrapped_model.state_dict(), path + f"{run.name}.pth")
+
+        #save the json
+        with open(path + f"{run.name}.json", "w") as f:
+            json.dump(model_metrics, f)
+
+
+        
+def train_single_epoch(model, train_loader, val_loader, test_loader, 
+                       optimizer, criterion, epoch, device, use_mixup=False):
+    """   
+    Actions: 
+        train a single epoch of the model        do_avg = True
+    """
+
+    model.train()
+    optimizer.zero_grad()
+
+    if isinstance(model, SNGPWrapper) and args.gp_cov_momentum < 0:
+        model.classifier[-1].reset_covariance_matrix()
+    
+
+    epoch_loss = 0
+    print("mixup prob is", args.mixup, args.mixup_prob)
+    for idx, (x,y) in enumerate(train_loader):
+        x,y = x.to(device), y.to(device)
+        r = torch.rand(1).item()
+        if args.mixup > 0 and r < args.mixup_prob:
+            x, y = mixup_datapoints(x, y, device, alpha=args.mixup)
+        if args.cutmix > 0 and r < args.cutmix_prob:
+            x, y = cutmix_datapoints(x, y, device, alpha=args.cutmix)
+
+        if isinstance(model, DUQWrapper):
+            x.requires_grad_(True)
+
+        def forward():
+            output = model(x)
+            loss = criterion(output, y)
+
+            if isinstance(model, DUQWrapper):
+                gradient_penalty = calc_gradient_penalty(x, output)
+                loss += args.gradient_penalty_weight * gradient_penalty
+            
+            return loss
+
+        def backward(loss):
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if isinstance(model, DUQWrapper):
+                x.requires_grad_(False)
+
+                with torch.no_grad():
+                    model.eval()
+                    model.update_centroids(x,y)
+                    model.train()
+        
+        loss = forward()
+        epoch_loss += loss.item()
+        backward(loss)
+
+
+    val_loss, val_accuracy = validate(model, val_loader, criterion, device)
+    avg_epoch_loss = epoch_loss / len(train_loader)
+    print(
+        f"Epoch {epoch}, Loss: {avg_epoch_loss},"
+        f"Val Loss: {val_loss}, Val Accuracy: {val_accuracy},"
+        f"LR: {optimizer.param_groups[0]['lr']}"
+    )
+    lr = optimizer.param_groups[0]["lr"]
+    # could also do some wandb logging
+    wandb.log({ 
+        "train_loss": avg_epoch_loss,
+        "val_loss": val_loss,
+        "val_accuracy": val_accuracy, 
+        "lr": lr
+    })  
+
+
+
+
+def validate(model, val_loader, criterion, device):
+    if len(val_loader) == 0:
+        return 0, 0
+
+    model.eval()
+    with torch.no_grad():
+        val_loss = 0
+        correct = 0
+        total = 0
+        for images, labels in val_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            if isinstance(model, SNGPWrapper) or isinstance(model, DropoutWrapper):
+                # take mean along 1 dim
+                outputs = model(images)["logit"].mean(1).to(device)
+
+            else:
+                outputs = model(images)["logit"].squeeze(1).to(device)
+
+            val_loss += criterion(outputs, labels)
+            total += labels.size(0)
+            correct += (torch.argmax(outputs, 1) == torch.argmax(labels, 1)).sum().item()
+        
+        val_loss /= len(val_loader)
+        val_accuracy = correct / total
+        return val_loss, val_accuracy 
+
+
+def calc_gradients_input(x, pred):
+    gradients = torch.autograd.grad(
+        outputs=pred,
+        inputs=x,
+        grad_outputs=torch.ones_like(pred),
+        retain_graph=True,  # Graph still needed for loss backprop
+    )[0]
+
+    gradients = gradients.flatten(start_dim=1)
+
+    return gradients
+
+
+def calc_gradient_penalty(x, pred):
+    gradients = calc_gradients_input(x, pred)
+
+    # L2 norm
+    grad_norm = gradients.norm(2, dim=1)
+
+    # Two-sided penalty
+    gradient_penalty = (grad_norm - 1).square().mean()
+
+    return gradient_penalty
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', "True", 't', 'y', '1', 1):
+        return True
+    elif v.lower() in ('no', 'false', "True", 'f', 'n', '0', 0):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
  
 if __name__== "__main__":
+
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
-    for conf in configs:
-        args.unc_method = "basic"
-        args.dropout = conf[0]
-        args.do_augmentation = conf[1]
-        args.mixup = conf[2]
-        args.cutmix = conf[3]
-        args.hard = conf[4]
-        print(args)
-        main(device=device, reader=reader, args=args)
+
+    do_augmentation_values = ['y']
+    mixup_values = [0, 0.2]
+    cutmix_values = [0, 0.2]   
+    hard = ["n", "y"]
+    dropout_values = [0.1]
+    configs = list(itertools.product(do_augmentation_values, mixup_values, cutmix_values, hard, dropout_values))
+    # TODO: do for 
+    # n, 0.1
+    # y, 0 
+    # n, 0
+
+    for i, conf in enumerate(configs):
+        if conf[1] > 0 and conf[2] > 0:
+            pass
+        
+
+        else:
+            args.unc_method = "basic"
+            args.do_augmentation = conf[0]
+            args.mixup = conf[1]
+            args.cutmix = conf[2]
+            args.hard = conf[3]
+            args.dropout = conf[4]
+            print(args)
+            main(device=device, reader=reader, args=args)
+
+

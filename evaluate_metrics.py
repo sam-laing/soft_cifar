@@ -29,34 +29,6 @@ from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_sco
 
 from collections import OrderedDict
 
-def validate(model, val_loader, criterion):
-    if len(val_loader) == 0:
-        return 0, 0
-
-    model.eval()
-    with torch.no_grad():
-        val_loss = 0
-        correct = 0
-        total = 0
-        for images, labels in val_loader:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            if (args.unc_method=="sngp") or (args.dropout>0):
-                # take mean along 1 dim
-                outputs = model(images)["logit"].mean(1).to(device)
-
-            else: 
-                outputs = model(images)["logit"].squeeze(1).to(device)
-
-
-            val_loss += criterion(outputs, labels)
-            total += labels.size(0)
-            correct += (torch.argmax(outputs, 1) == torch.argmax(labels, 1)).sum().item()
-        
-        val_loss /= len(val_loader)
-        val_accuracy = correct / total
-        return val_loss, val_accuracy 
 
 def evaluate_model(model, test_loader, device):
     """    
@@ -81,7 +53,7 @@ def evaluate_model(model, test_loader, device):
     labels_one_hot = labels.cpu().numpy()
 
     # Calculate the AUROC for each class and then average
-    auroc = roc_auc_score(labels_one_hot, outputs_prob)
+    #auroc = roc_auc_score(labels_one_hot, outputs_prob)
 
     brier_score = np.mean(np.sum((outputs_prob - labels_one_hot) ** 2, axis=1))
 
@@ -89,7 +61,7 @@ def evaluate_model(model, test_loader, device):
 
     
     return {
-        "Accuracy": acc, "ECE": ece, "Overconfidence Error": oe, "Log Loss": loss.item(), "AUROC": auroc, 
+        "Accuracy": acc, "ECE": ece, "Overconfidence Error": oe, "Log Loss": loss.item(),  
         "Precision" : precision, "Recall": recall, "Brier Score": brier_score
     }
 
