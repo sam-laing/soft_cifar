@@ -45,7 +45,7 @@ def make_reader(path=None):
     return reader
 
 
-def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None):
+def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None, seed=None):
     if entropy_threshold is not None:
         """   
         if the entropy of a sample is sufficiently low (below threshold),
@@ -72,6 +72,10 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
     N = reader.data.shape[0]
     N_train, N_val, N_test = [int(r * N) for r in split_ratio]
     idx = range(N)
+    if seed is not None:
+        np.random.seed(seed)
+        idx = np.random.permutation(idx)
+
     train_indices = idx[:N_train]
     val_indices = idx[N_train:N_train + N_val]
     test_indices = idx[N_train + N_val:]
@@ -118,8 +122,8 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
 
     return train_dataset, val_dataset, test_dataset
 
-def make_loaders(reader: ReaderSoft, batch_size:int = 64, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None):
-    train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels, do_augmentation)
+def make_loaders(reader: ReaderSoft, batch_size:int = 128, split_ratio:list = [0.8, 0.05, 0.15], use_hard_labels:bool = False, do_augmentation:bool = True, entropy_threshold:float = None, seed=None):
+    train_dataset, val_dataset, test_dataset = make_datasets(reader, split_ratio, use_hard_labels, do_augmentation, entropy_threshold, seed)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)

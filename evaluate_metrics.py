@@ -67,30 +67,30 @@ def evaluate_model(model, test_loader, device):
 
 
 def get_model_outputs_and_labels(test_loader: DataLoader, model:nn.Module, device, do_avg=False):
-  """
-  iterate through test loader and return single numpy array of all outputs and labels
-  """
-  model.eval()
-  outputs_list = []
-  labels_list = []
-  with torch.no_grad():
-    for i, (images, labels) in enumerate(test_loader):
-          
-      images, labels = images.to(device), labels.to(device)
+    """
+    iterate through test loader and return single numpy array of all outputs and labels
+    """
+    model.eval()
+    outputs_list = []
+    labels_list = []
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(test_loader):
+            
+            images, labels = images.to(device), labels.to(device)
 
-      outputs = model(images)["logit"].squeeze(1).to(device)
+            outputs = model(images)["logit"].squeeze(1).to(device)
 
-      if do_avg:
-        outputs = outputs.mean(1)
-    
-      outputs_list.append(outputs.cpu())
-      labels_list.append(labels.cpu())
+            if do_avg:
+                outputs = outputs.mean(1)
+            
+            outputs_list.append(outputs.cpu())
+            labels_list.append(labels.cpu())
 
-  all_outputs = torch.cat(outputs_list)
-  all_outputs = torch.softmax(all_outputs, dim=1)
-  all_labels = torch.cat(labels_list)
+    all_outputs = torch.cat(outputs_list)
+    all_outputs = torch.softmax(all_outputs, dim=1)
+    all_labels = torch.cat(labels_list)
 
-  return all_outputs, all_labels
+    return all_outputs, all_labels
 
 
 def _get_accuracy(outputs, labels):

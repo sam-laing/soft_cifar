@@ -33,7 +33,7 @@ import itertools
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 parser.add_argument('--unc_method', default = "sngp", type=str)
-parser.add_argument('--seed', default=43, type=int, help='seed for randomness')
+parser.add_argument('--seed', default=666, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
@@ -46,7 +46,7 @@ parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight dec
 parser.add_argument('--do_augmentation', default=True, type=bool, help='whether to do data augmentation')
 parser.add_argument('--hard', type=bool, default=True)
 parser.add_argument('--mixup', type=float, default=0.0)
-parser.add_argument('--mixup_prob', type=float, default=0.5)
+parser.add_argument('--mixup_prob', type=float, default=0.15)
 parser.add_argument('--cutmix', type=float, default=0.0)
 parser.add_argument('--cutmix_prob', type=float, default=0.15)
 
@@ -84,15 +84,16 @@ args = parser.parse_args()
 def main(args, device, reader):
     set_seed(args.seed)
     model = make_resnet_cifar(depth=args.depth).to(device)
-    try:
-        train_loader, val_loader, test_loader = make_loaders(
-                                                            reader, batch_size = 64, 
-                                                            split_ratio=[0.8, 0.05, 0.15], 
-                                                            use_hard_labels=str2bool(args.hard), 
-                                                            do_augmentation=str2bool(args.do_augmentation)
-                                                        )
-    except Exception as e:
-        print(f"Error: {e}")
+    train_loader, val_loader, test_loader = make_loaders(
+                                                        reader, 
+                                                        batch_size = args.batch_size, 
+                                                        split_ratio=[0.8, 0.05, 0.15], 
+                                                        use_hard_labels=str2bool(args.hard), 
+                                                        do_augmentation=str2bool(args.do_augmentation),
+                                                        entropy_threshold=None, 
+                                                        seed=args.seed
+                                                    )
+
 
     wrapped_model = create_wrapped_model(model, args).to(device)
     assert not (args.mixup > 0 and args.cutmix > 0), "Cannot use both mixup and cutmix at the same time"
@@ -108,7 +109,7 @@ def main(args, device, reader):
 
     job_id = os.environ.get("SLURM_JOB_ID")
 
-    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}"
+    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}, seed={args.seed}"
     if args.unc_method == "basic":
         name = "basic, " + common_hp_str + ".pth"
     elif args.unc_method == "sngp":
@@ -163,7 +164,6 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
     
 
     epoch_loss = 0
-    print("mixup prob is", args.mixup, args.mixup_prob)
     for idx, (x,y) in enumerate(train_loader):
         x,y = x.to(device), y.to(device)
         r = torch.rand(1).item()

@@ -1,5 +1,6 @@
 from resnet import make_resnet_cifar
-from read_loader import make_reader, make_loaders 
+from read_loader import make_reader, make_loaders
+from cifar10 import make_larger_hard_loaders 
 from mixup import mixup_datapoints, cutmix_datapoints 
 from evaluate_metrics import evaluate_model
 
@@ -28,12 +29,12 @@ import json
 import wandb
 from wandbkey import KEY
 import warnings
-import itertools
+
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
-parser.add_argument('--unc_method', default = "duq", type=str)
-parser.add_argument('--seed', default=666, type=int, help='seed for randomness')
+parser.add_argument('--unc_method', default = "basic", type=str)
+parser.add_argument('--seed', default=999, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
@@ -80,27 +81,27 @@ parser.add_argument('--gradient_penalty_weight', type=float, default=0.1)
 
 args = parser.parse_args()
 
-
-def main(args, device, reader):
+def main(args, device):
     set_seed(args.seed)
     model = make_resnet_cifar(depth=args.depth).to(device)
-    try:
-        train_loader, val_loader, test_loader = make_loaders(
-                                                            reader, batch_size = args.batch_size, 
-                                                            split_ratio=[0.8, 0.05, 0.15], 
-                                                            use_hard_labels=str2bool(args.hard), 
-                                                            do_augmentation=str2bool(args.do_augmentation), 
-                                                            entropy_threshold=None, 
-                                                            seed = args.seed
-                                                        )
-    except Exception as e:
-        print(f"Error: {e}")
+    train_loader, val_loader, test_loader = make_larger_hard_loaders(
+        path = "/mnt/qb/work/oh/owl886/datasets/cifar-10-batches-py/", 
+        batch_size=args.batch_size
+        )
+
+    # TODO: with augmentation
+    
+    full_size = 0
+    for x,y in train_loader:
+        full_size += len(x)
+    print(f"Full size of the dataset: {full_size}")
+
 
     wrapped_model = create_wrapped_model(model, args).to(device)
     assert not (args.mixup > 0 and args.cutmix > 0), "Cannot use both mixup and cutmix at the same time"
     wandb.login(key=KEY)
 
-    optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
     criterion = nn.CrossEntropyLoss()
     #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
     scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=args.gamma)
@@ -110,15 +111,15 @@ def main(args, device, reader):
 
     job_id = os.environ.get("SLURM_JOB_ID")
 
-    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}, seed={args.seed}"
+    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}"
     if args.unc_method == "basic":
-        name = "basic, " + common_hp_str + ".pth"
+        name = "basic, " + common_hp_str 
     elif args.unc_method == "sngp":
-        name = "sngp, " + common_hp_str + ".pth"
+        name = "sngp, " + common_hp_str 
     elif args.unc_method == "mahalanobis":
-        name = "mahalanobis, " + f"magnitude={args.magnitude}, weight_path={args.weight_path}" + common_hp_str + ".pth"
+        name = "mahalanobis, " + f"magnitude={args.magnitude}, weight_path={args.weight_path}" + common_hp_str 
     elif args.unc_method == "duq":
-        name = "duq, " + common_hp_str + ".pth"
+        name = "duq, " + common_hp_str 
     else:
         raise ValueError(f"Unknown uncertainty method: {args.unc_method}")
  
@@ -133,10 +134,22 @@ def main(args, device, reader):
 
             warnings.filterwarnings("ignore")
 
+
             train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch, device)
             scheduler.step(epoch)
 
-            warnings.simplefilter("default")  # Change the filter in this process
+            if epoch in [100, 150, 200, 225]:
+                model_metrics = evaluate_model(wrapped_model, test_loader, device)
+                model_metrics = {k: float(v) for k,v in model_metrics.items()}
+                # save the model 
+                path = "/mnt/qb/work/oh/owl886/soft_cifar/models/"
+                torch.save(wrapped_model.state_dict(), path + str(epoch) +f"{run.name}.pth")
+
+                #save the json
+                with open(path + str(epoch) + f"{run.name}.json", "w") as f:
+                    json.dump(model_metrics, f)
+
+                warnings.simplefilter("default")  # Change the filter in this process
 
         model_metrics = evaluate_model(wrapped_model, test_loader, device)
         model_metrics = {k: float(v) for k,v in model_metrics.items()}
@@ -145,7 +158,7 @@ def main(args, device, reader):
         torch.save(wrapped_model.state_dict(), path + f"{run.name}.pth")
 
         #save the json
-        with open(path + f"{run.name}.json", "w") as f:
+        with open(path + str(epoch) + f"{run.name}.json", "w") as f:
             json.dump(model_metrics, f)
 
 
@@ -282,32 +295,11 @@ def str2bool(v):
        return v
     if v.lower() in ('yes', 'true', "True", 't', 'y', '1', 1):
         return True
-    elif v.lower() in ('no', 'false', "False", 'f', 'n', '0', 0):
+    elif v.lower() in ('no', 'false', "True", 'f', 'n', '0', 0):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
- 
-if __name__== "__main__":
-    do_augmentation_values = ['y']
-    mixup_values = [0, 0.2]
-    cutmix_values = [0, 0.2]   
-    hard = ["n", "y"]
-
-    # TODO: do for augmentation "n" as well
-
-    # generate all possible combinations
-    configs = list(itertools.product(do_augmentation_values, mixup_values, cutmix_values, hard))
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
-    for i, conf in enumerate(configs):
-        if conf[1] > 0 and conf[2] > 0:
-            pass
-        else:
-            args.unc_method = "duq"
-            args.do_augmentation = conf[0]
-            args.mixup = conf[1]
-            args.cutmix = conf[2]
-            args.hard = conf[3]
-            print(args)
-            main(device=device, reader=reader, args=args)
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    main(args, device)

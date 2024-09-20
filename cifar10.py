@@ -11,7 +11,7 @@ def load_cifar10_batch(file):
         dict = pickle.load(fo, encoding='bytes')
     images = dict[b'data']
     labels = dict[b'labels']
-    images = images.reshape(-1, 32, 32,3).astype("float32")
+    images = images.reshape(-1, 32, 32, 3).astype("float32")
     return images, labels
 
 def load_cifar10(root):
@@ -31,11 +31,7 @@ def load_cifar10(root):
     np.put_along_axis(labels, max_indices[:, np.newaxis], 1, axis=1)
     labels = torch.tensor(labels, dtype=torch.float)  
 
-    
-    #test_file = os.path.join(root, 'test_batch')
-    #test_images, test_labels = load_cifar10_batch(test_file)
-    
-    return (train_images, labels)    #, (test_images, test_labels)
+    return (train_images, labels)
 
 class CustomCIFAR10(Dataset):
     def __init__(self, images, labels, transform=None):
@@ -47,33 +43,27 @@ class CustomCIFAR10(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx):
-        # transpose to right order
-        image = self.images[idx]
+        image = self.images[idx].astype(np.uint8)  # Convert to uint8
         label = self.labels[idx]
         
         if self.transform:
             image = self.transform(image)
         
-        label = self.labels[idx]
         return image, label
-    
 
-def make_larger_hard_datasets(path, split_ratio:list = [0.7, 0.15, 0.15], do_augmentation:bool = True, seed:int = 99):
-    # Load the CIFAR-10 data from files
+def make_larger_hard_datasets(path, split_ratio=[0.7, 0.15, 0.15], do_augmentation=True, seed=99):
     data, labels = load_cifar10(path)
 
     N = len(data)
-    N_train, N_val = int(N*split_ratio[0]), int(N*split_ratio[1])
+    N_train, N_val = int(N * split_ratio[0]), int(N * split_ratio[1])
     N_test = N - N_train - N_val
-
 
     np.random.seed(seed)
     indices = np.random.permutation(N)
 
     train_indices = indices[:N_train]
-    val_indices = indices[N_train:N_train+N_val]
-    test_indices = indices[N_train+N_val:]
-
+    val_indices = indices[N_train:N_train + N_val]
+    test_indices = indices[N_train + N_val:]
 
     if do_augmentation:
         transform = transforms.Compose([
@@ -102,7 +92,7 @@ def make_larger_hard_datasets(path, split_ratio:list = [0.7, 0.15, 0.15], do_aug
 
     return train_dataset, val_dataset, test_dataset
 
-def make_larger_hard_loaders(path, split_ratio:list = [0.7, 0.15, 0.15], do_augmentation:bool = True, batch_size:int = 64):
+def make_larger_hard_loaders(path, split_ratio=[0.7, 0.15, 0.15], do_augmentation=True, batch_size=64):
     train_dataset, val_dataset, test_dataset = make_larger_hard_datasets(path, split_ratio, do_augmentation)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -110,26 +100,19 @@ def make_larger_hard_loaders(path, split_ratio:list = [0.7, 0.15, 0.15], do_augm
 
     return train_loader, val_loader, test_loader
 
-
 if __name__ == '__main__':
     data, labels = load_cifar10('/mnt/qb/work/oh/owl886/datasets/cifar-10-batches-py')
     print(data.shape, labels.shape)
 
-
-
-
-
     path = "/mnt/qb/work/oh/owl886/datasets/cifar-10-batches-py"
 
     train_dataset, val_dataset, test_dataset = make_larger_hard_datasets(path)
-
     print(len(train_dataset), len(val_dataset), len(test_dataset))
 
     train_loader, val_loader, test_loader = make_larger_hard_loaders(path)
-    for x,y in train_loader:
+    for x, y in train_loader:
         print(x.shape, y.shape)
         break
-
 
     '''
     from model_structure import make_resnet_cifar
@@ -140,6 +123,4 @@ if __name__ == '__main__':
     for i, (input, label) in enumerate(train_loader):
         print(model(input).shape)
         break
-        
     '''
-
