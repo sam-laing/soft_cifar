@@ -11,3 +11,7 @@ losses/__pycache__
 .ipynb_checkpoints
 .ipynb 
 models/
+train_models_2.sh
+train_models_3.sh
+train_many2.py
+train_many3.py

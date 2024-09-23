@@ -13,5 +13,5 @@ singularity exec --nv \
 --bind /mnt/qb/work/oh/owl886/soft_cifar:/inside_container \
 --bind /mnt/qb/work/oh/owl886/datasets/CIFAR10H:/mnt/qb/work/oh/owl886/datasets/CIFAR10H \
 --bind /mnt/qb/work/oh/owl886/soft_cifar/models:/mnt/qb/work/oh/owl886/soft_cifar/models \
-/mnt/qb/work/oh/owl886/uncertainty/bud.sif python /inside_container/train_many_sngp.py --seed 667
+/mnt/qb/work/oh/owl886/uncertainty/bud.sif python /inside_container/train_many_sngp.py --seed 73
 

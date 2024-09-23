@@ -49,6 +49,7 @@ parser.add_argument('--mixup', type=float, default=0.0)
 parser.add_argument('--mixup_prob', type=float, default=0.15)
 parser.add_argument('--cutmix', type=float, default=0.0)
 parser.add_argument('--cutmix_prob', type=float, default=0.15)
+parser.add_argument('--entropy_threshold', type=float, default=None)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)

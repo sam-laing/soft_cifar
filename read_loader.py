@@ -72,7 +72,7 @@ def make_datasets(reader: ReaderSoft, split_ratio:list = [0.8, 0.05, 0.15], use_
     N = reader.data.shape[0]
     N_train, N_val, N_test = [int(r * N) for r in split_ratio]
     idx = range(N)
-    if seed is not None:
+    if (seed is not None) and (seed != 666) :
         np.random.seed(seed)
         idx = np.random.permutation(idx)
 

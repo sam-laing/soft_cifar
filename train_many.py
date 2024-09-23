@@ -49,6 +49,7 @@ parser.add_argument('--mixup', type=float, default=0.0)
 parser.add_argument('--mixup_prob', type=float, default=0.15)
 parser.add_argument('--cutmix', type=float, default=0.0)
 parser.add_argument('--cutmix_prob', type=float, default=0.15)
+parser.add_argument('--entropy_threshold', type=float, default=None)
 
 # SNGPWrapper arguments
 parser.add_argument('--is_spectral_normalized', type=bool, default=True)
@@ -293,12 +294,15 @@ if __name__== "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
 
-    do_augmentation_values = ['y']
+    do_augmentation_values = ['n']
     mixup_values = [0, 0.2]
     cutmix_values = [0, 0.2]   
     hard = ["n", "y"]
     dropout_values = [0.1]
     configs = list(itertools.product(do_augmentation_values, mixup_values, cutmix_values, hard, dropout_values))
+    # TODO (aug,drop)
+    # y, 0
+    # n, 0.1
 
 
     for i, conf in enumerate(configs):
