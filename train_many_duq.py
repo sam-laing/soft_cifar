@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+from cifar10 import make_larger_hard_loaders
 
 import logging
 import os
@@ -85,6 +86,7 @@ def main(args, device, reader):
     set_seed(args.seed)
     model = make_resnet_cifar(depth=args.depth).to(device)
     try:
+        """ 
         train_loader, val_loader, test_loader = make_loaders(
                                                             reader, batch_size = args.batch_size, 
                                                             split_ratio=[0.8, 0.05, 0.15], 
@@ -93,6 +95,9 @@ def main(args, device, reader):
                                                             entropy_threshold=None, 
                                                             seed = args.seed
                                                         )
+        """
+        train_loader, val_loader, test_loader = make_larger_hard_loaders(path="/mnt/qb/work/oh/owl886/datasets/cifar-10-batches-py/", split_ratio=[0.8,0.05,0.15], do_augmentation=args.do_augmentation, batch_size=args.batch_size)
+
     except Exception as e:
         print(f"Error: {e}")
 
@@ -110,7 +115,7 @@ def main(args, device, reader):
 
     job_id = os.environ.get("SLURM_JOB_ID")
 
-    common_hp_str = f"{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}, seed={args.seed}"
+    common_hp_str = f"full_cifar_{job_id}_hard={args.hard}, aug={args.do_augmentation},dropout={args.dropout}, mixup={args.mixup}, cutmix={args.cutmix}, seed={args.seed}"
     if args.unc_method == "basic":
         name = "basic, " + common_hp_str + ".pth"
     elif args.unc_method == "sngp":
@@ -291,7 +296,7 @@ def str2bool(v):
 if __name__== "__main__":
     do_augmentation_values = ['y']
     mixup_values = [0, 0.2]
-    cutmix_values = [0, 0.2]   
+    cutmix_values = [0]   
     hard = ["n", "y"]
 
     # TODO: do for augmentation "n" as well
@@ -299,7 +304,7 @@ if __name__== "__main__":
     # generate all possible combinations
     configs = list(itertools.product(do_augmentation_values, mixup_values, cutmix_values, hard))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
+    #reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
     for i, conf in enumerate(configs):
         if conf[1] > 0 and conf[2] > 0:
             pass
@@ -310,4 +315,4 @@ if __name__== "__main__":
             args.cutmix = conf[2]
             args.hard = conf[3]
             print(args)
-            main(device=device, reader=reader, args=args)
+            main(device=device, reader="none", args=args)

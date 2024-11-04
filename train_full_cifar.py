@@ -21,6 +21,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+from torch.utils.data import DataLoader, Dataset
 
 import logging
 import os
@@ -35,15 +36,15 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 parser.add_argument('--unc_method', default = "basic", type=str)
 parser.add_argument('--seed', default=999, type=int, help='seed for randomness')
-parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
+parser.add_argument('--dropout', default=0.1, type=float, help='dropout rate')
 
-parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--epochs', default=250, type=int, help='number of total epochs to run')
+parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
 parser.add_argument('--depth', default=20, type=int, help='depth of the model')
-parser.add_argument('--gamma', default=0.5, type=float, help='learning rate decay')
+parser.add_argument('--gamma', default=0.4, type=float, help='learning rate decay')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--batch_size', default=128, type=int, help='mini-batch size')
-parser.add_argument('--weight_decay', default=5e-5, type=float, help='weight decay')
+parser.add_argument('--weight_decay', default=5e-4, type=float, help='weight decay')
 parser.add_argument('--do_augmentation', default=True, type=bool, help='whether to do data augmentation')
 parser.add_argument('--hard', type=bool, default=True)
 parser.add_argument('--mixup', type=float, default=0.0)
@@ -86,10 +87,14 @@ def main(args, device):
     model = make_resnet_cifar(depth=args.depth).to(device)
     train_loader, val_loader, test_loader = make_larger_hard_loaders(
         path = "/mnt/qb/work/oh/owl886/datasets/cifar-10-batches-py/", 
-        batch_size=args.batch_size
-        )
+        split_ratio=[0.8, 0.05, 0.15],
+        batch_size=args.batch_size, 
+        do_augmentation=args.do_augmentation,
+        seed=args.seed
+    )
+        
 
-    # TODO: with augmentation
+
     
     full_size = 0
     for x,y in train_loader:
@@ -103,9 +108,9 @@ def main(args, device):
 
     optimizer = torch.optim.SGD(wrapped_model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
     criterion = nn.CrossEntropyLoss()
-    #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30], gamma=0.5)
-    scheduler = WarmupMultiStepLR(optimizer, warmup_epochs=5, milestones=[50,100,150,190,210,230], gamma=args.gamma)
-    
+    # scheduler should be normal multi step with milestones and gamma = 0.5
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[65, 120, 165], gamma=args.gamma)
+     
     if args.unc_method == "duq":
         criterion = DUQLoss()
 
@@ -123,7 +128,7 @@ def main(args, device):
     else:
         raise ValueError(f"Unknown uncertainty method: {args.unc_method}")
  
-    with wandb.init(project=f"CIFAR10 soft {args.unc_method}, seed {args.seed}", 
+    with wandb.init(project=f"CIFAR10 full {args.unc_method}, seed {args.seed}", 
                     name=name,
                     config=args) as run:
 
@@ -138,18 +143,6 @@ def main(args, device):
             train_single_epoch(wrapped_model, train_loader, val_loader, test_loader, optimizer, criterion, epoch, device)
             scheduler.step(epoch)
 
-            if epoch in [100, 150, 200, 225]:
-                model_metrics = evaluate_model(wrapped_model, test_loader, device)
-                model_metrics = {k: float(v) for k,v in model_metrics.items()}
-                # save the model 
-                path = "/mnt/qb/work/oh/owl886/soft_cifar/models/"
-                torch.save(wrapped_model.state_dict(), path + str(epoch) +f"{run.name}.pth")
-
-                #save the json
-                with open(path + str(epoch) + f"{run.name}.json", "w") as f:
-                    json.dump(model_metrics, f)
-
-                warnings.simplefilter("default")  # Change the filter in this process
 
         model_metrics = evaluate_model(wrapped_model, test_loader, device)
         model_metrics = {k: float(v) for k,v in model_metrics.items()}
@@ -226,6 +219,7 @@ def train_single_epoch(model, train_loader, val_loader, test_loader,
     )
     lr = optimizer.param_groups[0]["lr"]
     # could also do some wandb logging
+
     wandb.log({ 
         "train_loss": avg_epoch_loss,
         "val_loss": val_loss,

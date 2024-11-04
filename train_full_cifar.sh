@@ -3,9 +3,9 @@
 #SBATCH --partition=2080-galvani
 #SBATCH --cpus-per-task=1
 #SBATCH --nodes=1
-#SBATCH --time=9:00:00
+#SBATCH --time=4:30:00
 #SBATCH --gres=gpu:2
-#SBATCH --mem=25G
+#SBATCH --mem=23G
 #SBATCH -o /mnt/qb/work/oh/owl886/resnet_logs/grid_searched/%j_%x.out
 
 # Bind the host directories to directories inside the container

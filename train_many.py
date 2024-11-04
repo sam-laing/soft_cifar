@@ -36,7 +36,7 @@ parser.add_argument('--unc_method', default = "basic", type=str)
 parser.add_argument('--seed', default=667, type=int, help='seed for randomness')
 parser.add_argument('--dropout', default=0, type=float, help='dropout rate')
 
-parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.07, type=float, help='learning rate')
 parser.add_argument('--epochs', default=250, type=int, help='number of total epochs to run')
 parser.add_argument('--depth', default=20, type=int, help='depth of the model')
 parser.add_argument('--gamma', default=0.5, type=float, help='learning rate decay')
@@ -294,7 +294,7 @@ if __name__== "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     reader = make_reader("/mnt/qb/work/oh/owl886/datasets/CIFAR10H")
 
-    do_augmentation_values = ['n']
+    do_augmentation_values = ['y']
     mixup_values = [0, 0.2]
     cutmix_values = [0, 0.2]   
     hard = ["n", "y"]

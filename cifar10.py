@@ -57,9 +57,9 @@ def make_larger_hard_datasets(path, split_ratio=[0.7, 0.15, 0.15], do_augmentati
     N = len(data)
     N_train, N_val = int(N * split_ratio[0]), int(N * split_ratio[1])
     N_test = N - N_train - N_val
-
-    np.random.seed(seed)
-    indices = np.random.permutation(N)
+    if seed is not None:
+        np.random.seed(seed)
+        indices = np.random.permutation(N)
 
     train_indices = indices[:N_train]
     val_indices = indices[N_train:N_train + N_val]
@@ -92,8 +92,9 @@ def make_larger_hard_datasets(path, split_ratio=[0.7, 0.15, 0.15], do_augmentati
 
     return train_dataset, val_dataset, test_dataset
 
-def make_larger_hard_loaders(path, split_ratio=[0.7, 0.15, 0.15], do_augmentation=True, batch_size=64):
-    train_dataset, val_dataset, test_dataset = make_larger_hard_datasets(path, split_ratio, do_augmentation)
+def make_larger_hard_loaders(path, split_ratio=[0.7, 0.15, 0.15], do_augmentation=True, batch_size=64, seed=99):
+
+    train_dataset, val_dataset, test_dataset = make_larger_hard_datasets(path, split_ratio, do_augmentation, seed=99)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
