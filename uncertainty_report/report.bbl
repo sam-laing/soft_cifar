@@ -1,0 +1,115 @@
+\begin{thebibliography}{14}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Anthony and
+  Kamnitsas(2023)]{anthony2023usemahalanobisdistanceoutofdistribution}
+Harry Anthony and Konstantinos Kamnitsas.
+\newblock On the use of mahalanobis distance for out-of-distribution detection
+  with neural networks for medical imaging, 2023.
+\newblock URL \url{https://arxiv.org/abs/2309.01488}.
+
+\bibitem[Collier et~al.(2023)Collier, Jenatton, Mustafa, Houlsby, Berent, and
+  Kokiopoulou]{collier2023massivelyscalingheteroscedasticclassifiers}
+Mark Collier, Rodolphe Jenatton, Basil Mustafa, Neil Houlsby, Jesse Berent, and
+  Effrosyni Kokiopoulou.
+\newblock Massively scaling heteroscedastic classifiers, 2023.
+\newblock URL \url{https://arxiv.org/abs/2301.12860}.
+
+\bibitem[DeVries and
+  Taylor(2017)]{devries2017improvedregularizationconvolutionalneural}
+Terrance DeVries and Graham~W. Taylor.
+\newblock Improved regularization of convolutional neural networks with cutout,
+  2017.
+\newblock URL \url{https://arxiv.org/abs/1708.04552}.
+
+\bibitem[Gal and Ghahramani(2016)]{pmlr-v48-gal16}
+Yarin Gal and Zoubin Ghahramani.
+\newblock Dropout as a bayesian approximation: Representing model uncertainty
+  in deep learning.
+\newblock In Maria~Florina Balcan and Kilian~Q. Weinberger, editors,
+  \emph{Proceedings of The 33rd International Conference on Machine Learning},
+  volume~48 of \emph{Proceedings of Machine Learning Research}, pages
+  1050--1059, New York, New York, USA, 20--22 Jun 2016. PMLR.
+\newblock URL \url{https://proceedings.mlr.press/v48/gal16.html}.
+
+\bibitem[Goodfellow et~al.(2015)Goodfellow, Shlens, and
+  Szegedy]{goodfellow2015explainingharnessingadversarialexamples}
+Ian~J. Goodfellow, Jonathon Shlens, and Christian Szegedy.
+\newblock Explaining and harnessing adversarial examples, 2015.
+\newblock URL \url{https://arxiv.org/abs/1412.6572}.
+
+\bibitem[Guo et~al.(2017)Guo, Pleiss, Sun, and
+  Weinberger]{guo2017calibrationmodernneuralnetworks}
+Chuan Guo, Geoff Pleiss, Yu~Sun, and Kilian~Q. Weinberger.
+\newblock On calibration of modern neural networks, 2017.
+\newblock URL \url{https://arxiv.org/abs/1706.04599}.
+
+\bibitem[Liu et~al.(2020)Liu, Lin, Padhy, Tran, Bedrax-Weiss, and
+  Lakshminarayanan]{liu2020simpleprincipleduncertaintyestimation}
+Jeremiah~Zhe Liu, Zi~Lin, Shreyas Padhy, Dustin Tran, Tania Bedrax-Weiss, and
+  Balaji Lakshminarayanan.
+\newblock Simple and principled uncertainty estimation with deterministic deep
+  learning via distance awareness, 2020.
+\newblock URL \url{https://arxiv.org/abs/2006.10108}.
+
+\bibitem[Paszke et~al.(2019)Paszke, Gross, Massa, Lerer, Bradbury, Chanan,
+  Killeen, Lin, Gimelshein, Antiga, Desmaison, Kopf, Yang, DeVito, Raison,
+  Tejani, Chilamkurthy, Steiner, Fang, Bai, and Chintala]{NEURIPS2019_9015}
+Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory
+  Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, Alban
+  Desmaison, Andreas Kopf, Edward Yang, Zachary DeVito, Martin Raison, Alykhan
+  Tejani, Sasank Chilamkurthy, Benoit Steiner, Lu~Fang, Junjie Bai, and Soumith
+  Chintala.
+\newblock Pytorch: An imperative style, high-performance deep learning library.
+\newblock In \emph{Advances in Neural Information Processing Systems 32}, pages
+  8024--8035. Curran Associates, Inc., 2019.
+\newblock URL
+  \url{http://papers.neurips.cc/paper/9015-pytorch-an-imperative-style-high-performance-deep-learning-library.pdf}.
+
+\bibitem[Peterson et~al.(2019)Peterson, Battleday, Griffiths, and
+  Russakovsky]{peterson2019humanuncertaintymakesclassification}
+Joshua~C. Peterson, Ruairidh~M. Battleday, Thomas~L. Griffiths, and Olga
+  Russakovsky.
+\newblock Human uncertainty makes classification more robust, 2019.
+\newblock URL \url{https://arxiv.org/abs/1908.07086}.
+
+\bibitem[Srivastava et~al.(2014)Srivastava, Hinton, Krizhevsky, Sutskever, and
+  Salakhutdinov]{JMLR:v15:srivastava14a}
+Nitish Srivastava, Geoffrey Hinton, Alex Krizhevsky, Ilya Sutskever, and Ruslan
+  Salakhutdinov.
+\newblock Dropout: A simple way to prevent neural networks from overfitting.
+\newblock \emph{Journal of Machine Learning Research}, 15\penalty0
+  (56):\penalty0 1929--1958, 2014.
+\newblock URL \url{http://jmlr.org/papers/v15/srivastava14a.html}.
+
+\bibitem[van Amersfoort et~al.(2020)van Amersfoort, Smith, Teh, and Gal]{duq}
+Joost van Amersfoort, Lewis Smith, Yee~Whye Teh, and Yarin Gal.
+\newblock Uncertainty estimation using a single deep deterministic neural
+  network, 2020.
+\newblock URL \url{https://arxiv.org/abs/2003.02037}.
+
+\bibitem[Vyas et~al.(2020)Vyas, Saxena, and
+  Voice]{vyas2020learningsoftlabelsmeta}
+Nidhi Vyas, Shreyas Saxena, and Thomas Voice.
+\newblock Learning soft labels via meta learning, 2020.
+\newblock URL \url{https://arxiv.org/abs/2009.09496}.
+
+\bibitem[Yun et~al.(2019)Yun, Han, Oh, Chun, Choe, and
+  Yoo]{yun2019cutmixregularizationstrategytrain}
+Sangdoo Yun, Dongyoon Han, Seong~Joon Oh, Sanghyuk Chun, Junsuk Choe, and
+  Youngjoon Yoo.
+\newblock Cutmix: Regularization strategy to train strong classifiers with
+  localizable features, 2019.
+\newblock URL \url{https://arxiv.org/abs/1905.04899}.
+
+\bibitem[Zhang et~al.(2018)Zhang, Cisse, Dauphin, and
+  Lopez-Paz]{zhang2018mixupempiricalriskminimization}
+Hongyi Zhang, Moustapha Cisse, Yann~N. Dauphin, and David Lopez-Paz.
+\newblock mixup: Beyond empirical risk minimization, 2018.
+\newblock URL \url{https://arxiv.org/abs/1710.09412}.
+
+\end{thebibliography}
