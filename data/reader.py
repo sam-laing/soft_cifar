@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torchvision.datasets.folder import pil_loader
 
-from img_extensions import get_img_extensions
+from data.img_extensions import get_img_extensions
 from abc import abstractmethod
 
 
