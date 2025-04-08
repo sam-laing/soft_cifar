@@ -12,9 +12,8 @@ import os
 
 
 #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-from read_loader import make_datasets, make_loaders, make_reader
+from data.read_loader import make_datasets, make_loaders, make_reader
 from resnet import make_resnet_cifar
-from wandbkey import KEY
 
 import random
 
