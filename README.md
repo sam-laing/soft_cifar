@@ -52,8 +52,6 @@ We use ResNet architectures of varying depths, with the primary experiments cond
 
 
 
-
-
 ## Usage
 
 ### Basic Training
@@ -62,3 +60,6 @@ To train a basic ResNet model with hard labels:
 
 ```bash
 python train.py --unc_method basic --hard True --do_augmentation True
+```
+
+or if using the SLURM scheduler, simply run the train.sh script with the appropriately adjusted file paths and ensure [the soft cifar 10 dataset](https://github.com/jcpeterson/cifar-10h) has been downloaded.
