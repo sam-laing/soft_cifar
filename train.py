@@ -26,7 +26,10 @@ import os
 import json
 
 import wandb
-from wandbkey import KEY  # wandbkey.py is private for security reasons, make your own to use wandb
+try:
+    from wandbkey import KEY  # wandbkey.py is private for security reasons, make your own to use wandb
+except ImportError:
+    print("create a wandbkey.py file with your wandb API key to use wandb")
 import warnings
 
 from utils import str2bool, calc_gradient_penalty, train_single_epoch, validate, set_seed
@@ -166,5 +169,8 @@ def main(device, reader, args=args):
         with open(path + f"{run.name}.json", "w") as f:
             json.dump(model_metrics, f)
 
-
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    reader = make_reader("/home/slaing/ML/2nd_year/sem2/research/CIFAR10H")
+    main(device, reader, args)
         

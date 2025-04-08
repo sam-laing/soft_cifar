@@ -3,6 +3,7 @@ of the "Is One Annotation Enough?" paper
 
 Hacked together by / Copyright 2023 Michael Kirchhof
                            and 2024 Bálint Mucsányi
+                           and 2024 Sam Laing
 """
 import json
 import os
