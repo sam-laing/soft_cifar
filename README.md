@@ -50,9 +50,15 @@ We use ResNet architectures of varying depths, with the primary experiments cond
 - numpy
 - Weights & Biases for experiment tracking
 
-## Citation
-
-If you find this code or our results useful in your research, please consider citing our paper:
 
 
 
+
+## Usage
+
+### Basic Training
+
+To train a basic ResNet model with hard labels:
+
+```bash
+python train.py --unc_method basic --hard True --do_augmentation True
